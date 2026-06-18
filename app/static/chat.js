@@ -1,4 +1,4 @@
-// Этот файл отправляет сообщения из формы в backend и показывает ответы в чате.
+// Этот файл отправляет сообщения в backend и потоково отображает SSE-ответы.
 
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message");
@@ -7,16 +7,30 @@ const submitButton = form.querySelector("button[type='submit']");
 
 const sessionId = getSessionId();
 
-function getSessionId() {
-    const savedSessionId = localStorage.getItem("chat_session_id");
-
-    if (savedSessionId) {
-        return savedSessionId;
+function createSessionId() {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
     }
 
-    const newSessionId = crypto.randomUUID();
-    localStorage.setItem("chat_session_id", newSessionId);
-    return newSessionId;
+    const randomPart = Math.random().toString(36).slice(2);
+    return `session-${Date.now()}-${randomPart}`;
+}
+
+function getSessionId() {
+    try {
+        const savedSessionId = localStorage.getItem("chat_session_id");
+
+        if (savedSessionId) {
+            return savedSessionId;
+        }
+
+        const newSessionId = createSessionId();
+        localStorage.setItem("chat_session_id", newSessionId);
+        return newSessionId;
+    } catch (error) {
+        console.warn("Не удалось использовать localStorage", error);
+        return createSessionId();
+    }
 }
 
 function addMessage(content, role, isError = false) {
@@ -30,6 +44,81 @@ function addMessage(content, role, isError = false) {
     message.textContent = content;
     messages.append(message);
     messages.scrollTop = messages.scrollHeight;
+    return message;
+}
+
+function readSseEvent(block) {
+    let eventName = "message";
+    const dataLines = [];
+
+    for (const line of block.split(/\r?\n/)) {
+        if (line.startsWith("event:")) {
+            eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+            dataLines.push(line.slice(5).trimStart());
+        }
+    }
+
+    if (dataLines.length === 0) {
+        return null;
+    }
+
+    return {
+        name: eventName,
+        data: JSON.parse(dataLines.join("\n")),
+    };
+}
+
+function handleSseEvent(event, assistantMessage) {
+    if (event.name === "token") {
+        assistantMessage.textContent += event.data.text;
+        messages.scrollTop = messages.scrollHeight;
+        return;
+    }
+
+    if (event.name === "error") {
+        throw new Error(event.data.message || "Ошибка генерации ответа");
+    }
+}
+
+async function streamResponse(response, assistantMessage) {
+    if (!response.body) {
+        throw new Error("Браузер не поддерживает потоковые ответы");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+        const {value, done} = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() || "";
+
+        for (const block of blocks) {
+            if (!block.trim()) {
+                continue;
+            }
+
+            const event = readSseEvent(block);
+            if (event) {
+                handleSseEvent(event, assistantMessage);
+            }
+        }
+
+        if (done) {
+            break;
+        }
+    }
+
+    if (buffer.trim()) {
+        const event = readSseEvent(buffer);
+        if (event) {
+            handleSseEvent(event, assistantMessage);
+        }
+    }
 }
 
 form.addEventListener("submit", async (event) => {
@@ -45,6 +134,8 @@ form.addEventListener("submit", async (event) => {
     input.disabled = true;
     submitButton.disabled = true;
 
+    let assistantMessage = null;
+
     try {
         const response = await fetch("/api/chat", {
             method: "POST",
@@ -58,17 +149,35 @@ form.addEventListener("submit", async (event) => {
         });
 
         if (!response.ok) {
-            throw new Error(`Backend returned ${response.status}`);
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(
+                errorBody?.detail || `Backend returned ${response.status}`,
+            );
         }
 
-        const data = await response.json();
-        addMessage(data.reply, "assistant");
+        assistantMessage = addMessage("", "assistant");
+        await streamResponse(response, assistantMessage);
+
+        if (!assistantMessage.textContent) {
+            throw new Error("AI не вернул текстовый ответ");
+        }
     } catch (error) {
         console.error(error);
-        addMessage("Не удалось отправить сообщение. Попробуйте еще раз.", "assistant", true);
+        const errorText = error.message || "Не удалось отправить сообщение.";
+
+        if (assistantMessage && !assistantMessage.textContent) {
+            assistantMessage.textContent = errorText;
+            assistantMessage.classList.add("message--error");
+        } else {
+            addMessage(errorText, "assistant", true);
+        }
     } finally {
         input.disabled = false;
         submitButton.disabled = false;
         input.focus();
     }
+});
+
+window.addEventListener("error", (event) => {
+    console.error("Ошибка интерфейса чата", event.error || event.message);
 });

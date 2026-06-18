@@ -1,1 +1,10 @@
-
+# Этот файл исключает секреты, локальные окружения и служебные файлы из Git.
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+chroma_data/

@@ -1,8 +1,13 @@
 # Этот файл загружает настройки приложения из переменных окружения и файла .env.
 
 from functools import lru_cache
+from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -10,7 +15,17 @@ class Settings(BaseSettings):
     debug: bool = False
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/ai_consultant"
-    openai_api_key: str = ""
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_fallback_model: str = "gemini-2.5-flash"
+    embedding_model_name: str = (
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+
+    knowledge_dir: Path = PROJECT_ROOT / "knowledge"
+    chroma_path: Path = PROJECT_ROOT / "chroma_data"
+    chroma_collection: str = "business_knowledge"
+    rag_max_distance: float = 0.65
 
     smtp_host: str = "localhost"
     smtp_port: int = 587
@@ -21,10 +36,17 @@ class Settings(BaseSettings):
     email_to: str = ""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("knowledge_dir", "chroma_path", mode="after")
+    @classmethod
+    def resolve_project_path(cls, value: Path) -> Path:
+        if value.is_absolute():
+            return value
+        return PROJECT_ROOT / value
 
 
 @lru_cache

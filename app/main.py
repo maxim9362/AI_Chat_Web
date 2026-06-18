@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.chat import router as chat_router
+from app.api.leads import router as leads_router
 from app.config import settings
 
 
@@ -19,6 +20,7 @@ app = FastAPI(
 )
 
 app.include_router(chat_router, prefix="/api")
+app.include_router(leads_router, prefix="/api")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
