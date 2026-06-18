@@ -1,0 +1,43 @@
+<!-- Этот файл содержит простую веб-страницу пользовательского чата. -->
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI-консультант</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main class="chat">
+        <header class="chat__header">
+            <div class="chat__status" aria-hidden="true"></div>
+            <div>
+                <h1>AI-консультант</h1>
+                <p>Задайте вопрос о компании</p>
+            </div>
+        </header>
+
+        <section id="messages" class="chat__messages" aria-live="polite">
+            <div class="message message--assistant">
+                Здравствуйте! Чем я могу вам помочь?
+            </div>
+        </section>
+
+        <form id="chat-form" class="chat__form">
+            <label class="visually-hidden" for="message">Ваш вопрос</label>
+            <input
+                id="message"
+                name="message"
+                type="text"
+                placeholder="Напишите сообщение..."
+                maxlength="4000"
+                autocomplete="off"
+                required
+            >
+            <button type="submit">Отправить</button>
+        </form>
+    </main>
+
+    <script src="/static/chat.js" defer></script>
+</body>
+</html>
