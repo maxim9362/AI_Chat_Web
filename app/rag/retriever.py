@@ -7,6 +7,7 @@ import chromadb
 from chromadb.errors import NotFoundError
 
 from app.rag.embeddings import EmbeddingClient
+from app.services.lead_extractor import normalize_air_conditioner_text
 
 
 class KnowledgeIndexError(RuntimeError):
@@ -48,7 +49,8 @@ class KnowledgeRetriever:
         if not 3 <= limit <= 5:
             raise ValueError("Количество фрагментов должно быть от 3 до 5.")
 
-        query_embedding = self._embedding_client.embed_query(query)
+        normalized_query = normalize_air_conditioner_text(query)
+        query_embedding = self._embedding_client.embed_query(normalized_query)
         available_chunks = self._collection.count()
         if available_chunks == 0:
             return []

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     knowledge_dir: Path = PROJECT_ROOT / "knowledge"
     chroma_path: Path = PROJECT_ROOT / "chroma_data"
     chroma_collection: str = "business_knowledge"
-    rag_max_distance: float = 0.65
+    rag_max_distance: float = 0.78
 
     smtp_host: str = "localhost"
     smtp_port: int = 587

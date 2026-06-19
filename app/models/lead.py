@@ -24,6 +24,10 @@ class Lead(Base):
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preferred_contact_time: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(
         String(32),
         default="new",

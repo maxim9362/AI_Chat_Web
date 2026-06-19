@@ -1,28 +1,44 @@
 # Этот файл управляет сохранением диалога и потоковой генерацией ответа AI.
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.client import LLMClient
+from app.models.lead import Lead
 from app.rag.embeddings import EmbeddingClient
 from app.rag.retriever import KnowledgeRetriever, RetrievedChunk
+from app.repositories.lead_repository import get_lead_by_session_id
 from app.repositories.message_repository import (
     get_recent_messages,
     save_message,
 )
-from app.services.prompt_builder import build_chat_prompt
-from app.services.conversation_responder import get_conversation_response
+from app.services.conversation_responder import (
+    get_conversation_response,
+    is_silent_post_lead_message,
+)
 from app.services.lead_dialogue import process_lead_dialogue
+from app.services.lead_service import (
+    add_details_to_existing_lead,
+    create_lead_if_ready,
+    format_lead_confirmation,
+)
+from app.services.prompt_builder import CustomerContext, build_chat_prompt
 from app.services.session_service import get_or_create_session
 
 
 HISTORY_LIMIT = 6
 LEAD_HISTORY_LIMIT = 30
 NO_KNOWLEDGE_RESPONSE = (
-    "По этому вопросу лучше связаться со специалистом компании."
+    "Я не нашел точной информации по этому запросу. "
+    "Уточните, пожалуйста, какая именно услуга или стоимость вас интересует."
 )
+@dataclass(frozen=True, slots=True)
+class ConversationState:
+    lead_created: bool
+    lead: Lead | None
 
 
 def stream_chat_answer(
@@ -54,13 +70,49 @@ def stream_chat_answer(
         session_id=chat_session.session_id,
         messages=recent_messages,
     )
+    lead = get_lead_by_session_id(db, chat_session.session_id)
+    post_lead_update_response = None
+    if lead is not None:
+        post_lead_update_response = add_details_to_existing_lead(
+            db=db,
+            lead=lead,
+            user_message=user_message,
+        )
+        lead = get_lead_by_session_id(db, chat_session.session_id)
+    if lead is None and lead_dialogue_response is None:
+        lead = create_lead_if_ready(
+            db=db,
+            session_id=chat_session.session_id,
+            user_messages=[
+                message.content
+                for message in recent_messages
+                if message.role == "user"
+            ],
+        )
+        if lead is not None:
+            lead_dialogue_response = format_lead_confirmation(lead)
+
+    conversation_state = ConversationState(
+        lead_created=lead is not None,
+        lead=lead,
+    )
+    silent_response = (
+        conversation_state.lead_created
+        and is_silent_post_lead_message(user_message)
+    )
 
     conversation_response = (
         lead_dialogue_response
-        or get_conversation_response(user_message)
+        or post_lead_update_response
+        or get_conversation_response(
+            user_message,
+            lead_created=conversation_state.lead_created,
+            customer_name=lead.name if lead else None,
+            lead_status=lead.status if lead else None,
+        )
     )
     knowledge_chunks = []
-    if conversation_response is None:
+    if conversation_response is None and not silent_response:
         embedding_client = EmbeddingClient(
             model_name=settings.embedding_model_name,
         )
@@ -89,6 +141,9 @@ def stream_chat_answer(
             )
 
     async def generate() -> AsyncIterator[str]:
+        if silent_response:
+            return
+
         if conversation_response is not None:
             save_message(
                 db=db,
@@ -100,19 +155,25 @@ def stream_chat_answer(
             return
 
         if not knowledge_chunks:
+            response = (
+                _post_lead_no_knowledge_response(conversation_state)
+                if conversation_state.lead_created
+                else NO_KNOWLEDGE_RESPONSE
+            )
             save_message(
                 db=db,
                 session_id=chat_session.session_id,
                 role="assistant",
-                content=NO_KNOWLEDGE_RESPONSE,
+                content=response,
             )
-            yield NO_KNOWLEDGE_RESPONSE
+            yield response
             return
 
         prompt = build_chat_prompt(
             history=history,
             user_question=user_message,
             knowledge_chunks=[chunk.content for chunk in knowledge_chunks],
+            customer_context=_build_customer_context(conversation_state),
         )
         answer_parts: list[str] = []
 
@@ -133,6 +194,37 @@ def stream_chat_answer(
             )
 
     return generate()
+
+
+def _build_customer_context(
+    conversation_state: ConversationState,
+) -> CustomerContext:
+    lead = conversation_state.lead
+    return CustomerContext(
+        lead_created=conversation_state.lead_created,
+        name=lead.name if lead else None,
+        phone=lead.phone if lead else None,
+        email=lead.email if lead else None,
+        request_details=lead.message if lead else None,
+        preferred_contact_time=(
+            lead.preferred_contact_time
+            if lead
+            else None
+        ),
+        status=lead.status if lead else None,
+    )
+
+
+def _post_lead_no_knowledge_response(
+    conversation_state: ConversationState,
+) -> str:
+    lead = conversation_state.lead
+    greeting = f"{lead.name}, " if lead and lead.name else ""
+    return (
+        f"{greeting}ваша заявка уже оформлена, повторно оставлять данные "
+        "не нужно. Уточните, пожалуйста, что еще вы хотите узнать по заявке "
+        "или по обслуживанию кондиционера?"
+    )
 
 
 def _needs_contextual_retrieval(message: str) -> bool:

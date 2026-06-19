@@ -23,6 +23,7 @@ def create_lead(
     phone: str | None,
     email: str | None,
     message: str | None,
+    preferred_contact_time: str | None = None,
 ) -> Lead:
     lead = Lead(
         session_id=session_id,
@@ -30,6 +31,7 @@ def create_lead(
         phone=phone,
         email=email,
         message=message,
+        preferred_contact_time=preferred_contact_time,
         status="new",
     )
     db.add(lead)
@@ -53,11 +55,36 @@ def update_lead(
     phone: str | None,
     email: str | None,
     message: str | None,
+    preferred_contact_time: str | None = None,
 ) -> Lead:
     lead.name = name
     lead.phone = phone
     lead.email = email
     lead.message = message
+    lead.preferred_contact_time = preferred_contact_time
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def append_lead_message(
+    db: Session,
+    lead: Lead,
+    additional_details: str,
+) -> Lead:
+    normalized_details = additional_details.strip()
+    if not normalized_details:
+        return lead
+
+    existing_message = (lead.message or "").strip()
+    if normalized_details.casefold() in existing_message.casefold():
+        return lead
+
+    lead.message = (
+        f"{existing_message}\nДополнение: {normalized_details}"
+        if existing_message
+        else f"Дополнение: {normalized_details}"
+    )
     db.commit()
     db.refresh(lead)
     return lead

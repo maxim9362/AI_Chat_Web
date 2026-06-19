@@ -21,23 +21,47 @@ VAGUE_PATTERN = re.compile(
     r"не\s+понял(?:а)?)[!,.?\s]*$",
     re.IGNORECASE,
 )
-CONSULTATION_PATTERN = re.compile(
-    r"(?:нужна|нужен|хочу|требуется|интересует)\s+"
-    r"(?:консультац\w*|помощ\w*\s+специалист\w*)",
+STATUS_PATTERN = re.compile(
+    r"\b(?:статус|что\s+с\s+(?:моей\s+)?заявк\w*|"
+    r"заявк\w*\s+(?:принята|оформлена))\b",
     re.IGNORECASE,
 )
 
 
-def get_conversation_response(message: str) -> str | None:
+def is_silent_post_lead_message(message: str) -> bool:
     normalized_message = " ".join(message.split())
+    return bool(
+        THANKS_PATTERN.fullmatch(normalized_message)
+        or FAREWELL_PATTERN.fullmatch(normalized_message)
+    )
 
-    if CONSULTATION_PATTERN.search(normalized_message):
+
+def get_conversation_response(
+    message: str,
+    lead_created: bool = False,
+    customer_name: str | None = None,
+    lead_status: str | None = None,
+) -> str | None:
+    normalized_message = " ".join(message.split())
+    greeting_name = f", {customer_name}" if customer_name else ""
+
+    if lead_created and STATUS_PATTERN.search(normalized_message):
+        if lead_status == "new":
+            return (
+                "Ваша заявка принята и ожидает обработки менеджером. "
+                "Повторно оставлять данные не нужно."
+            )
         return (
-            "Здравствуйте! Опишите, пожалуйста, вашу задачу. "
-            "Для оформления заявки также можно оставить имя и телефон или email."
+            f"Текущий статус вашей заявки: {lead_status or 'принята'}. "
+            "Повторно оставлять данные не нужно."
         )
 
     if GREETING_PATTERN.fullmatch(normalized_message):
+        if lead_created:
+            return (
+                f"Здравствуйте{greeting_name}! Ваша заявка уже оформлена. "
+                "Чем еще могу помочь?"
+            )
         return (
             "Здравствуйте! Я могу рассказать об услугах, ценах, графике работы, "
             "контактах или помочь оформить заявку."
@@ -47,9 +71,16 @@ def get_conversation_response(message: str) -> str | None:
         return "Пожалуйста! Задайте еще один вопрос, если потребуется помощь."
 
     if FAREWELL_PATTERN.fullmatch(normalized_message):
+        if lead_created:
+            return None
         return "До свидания! Будем рады помочь снова."
 
     if VAGUE_PATTERN.fullmatch(normalized_message):
+        if lead_created:
+            return (
+                "Уточните, пожалуйста, что именно вы хотите узнать по уже "
+                "оформленной заявке или по обслуживанию кондиционера."
+            )
         return (
             "Пожалуйста, уточните вопрос. Например, спросите об услугах, "
             "стоимости, графике работы, контактах или оформлении заявки."

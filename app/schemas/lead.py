@@ -12,6 +12,7 @@ class LeadResponse(BaseModel):
     phone: str | None
     email: str | None
     message: str | None
+    preferred_contact_time: str | None
     status: str
     created_at: datetime
 

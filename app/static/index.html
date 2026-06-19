@@ -5,16 +5,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AI-консультант</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
     <main class="chat">
         <header class="chat__header">
             <div class="chat__status" aria-hidden="true"></div>
-            <div>
+            <div class="chat__heading">
                 <h1>AI-консультант</h1>
                 <p>Задайте вопрос о компании</p>
             </div>
+            <button
+                id="new-chat"
+                class="chat__reset"
+                type="button"
+                title="Начать новый диалог"
+            >
+                Новый диалог
+            </button>
         </header>
 
         <section id="messages" class="chat__messages" aria-live="polite">
@@ -38,6 +46,6 @@
         </form>
     </main>
 
-    <script src="/static/chat.js?v=3" defer></script>
+    <script src="/static/chat.js?v=5" defer></script>
 </body>
 </html>

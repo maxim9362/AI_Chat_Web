@@ -4,6 +4,7 @@ const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message");
 const messages = document.querySelector("#messages");
 const submitButton = form.querySelector("button[type='submit']");
+const newChatButton = document.querySelector("#new-chat");
 
 const sessionId = getSessionId();
 
@@ -32,6 +33,16 @@ function getSessionId() {
         return createSessionId();
     }
 }
+
+newChatButton.addEventListener("click", () => {
+    try {
+        localStorage.removeItem("chat_session_id");
+    } catch (error) {
+        console.warn("Не удалось очистить session_id", error);
+    }
+
+    window.location.reload();
+});
 
 function addMessage(content, role, isError = false) {
     const message = document.createElement("div");
@@ -159,7 +170,8 @@ form.addEventListener("submit", async (event) => {
         await streamResponse(response, assistantMessage);
 
         if (!assistantMessage.textContent) {
-            throw new Error("AI не вернул текстовый ответ");
+            assistantMessage.remove();
+            assistantMessage = null;
         }
     } catch (error) {
         console.error(error);

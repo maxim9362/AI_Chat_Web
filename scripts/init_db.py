@@ -9,6 +9,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import app.models  # noqa: E402, F401
+from sqlalchemy import inspect, text  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.database.base import Base  # noqa: E402
 from app.database.db import engine  # noqa: E402
@@ -17,6 +18,18 @@ from app.models.lead import Lead  # noqa: E402
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    columns = {
+        column["name"]
+        for column in inspect(engine).get_columns("leads")
+    }
+    if "preferred_contact_time" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE leads ADD COLUMN "
+                    "preferred_contact_time VARCHAR(255)"
+                )
+            )
     lead_session_index = next(
         index
         for index in Lead.__table__.indexes
