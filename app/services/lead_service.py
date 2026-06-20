@@ -18,7 +18,7 @@ from app.services.lead_extractor import (
     extract_service,
     normalize_air_conditioner_text,
 )
-from app.services.notification import send_lead_notification
+from app.services.notification_service import notify_new_lead
 from app.services.working_hours import working_hours_notice
 
 
@@ -76,7 +76,7 @@ def create_lead_if_ready(
         ),
         preferred_contact_time=extracted.preferred_contact_time,
     )
-    send_lead_notification(lead)
+    notify_new_lead(lead)
     return lead
 
 
@@ -110,7 +110,7 @@ def create_or_update_lead(
         message=details,
         preferred_contact_time=preferred_contact_time,
     )
-    send_lead_notification(lead)
+    notify_new_lead(lead)
     return lead
 
 

@@ -3,12 +3,13 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.chat import router as chat_router
-from app.api.leads import router as leads_router
+from app.api.router import api_router
 from app.config import settings
+from app.widget.router import router as widget_router
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -19,8 +20,15 @@ app = FastAPI(
     debug=settings.debug,
 )
 
-app.include_router(chat_router, prefix="/api")
-app.include_router(leads_router, prefix="/api")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origin_list,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
+app.include_router(api_router)
+app.include_router(widget_router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

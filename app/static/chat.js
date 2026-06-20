@@ -1,10 +1,13 @@
-// Этот файл отправляет сообщения в backend и потоково отображает SSE-ответы.
+// Этот файл управляет интерфейсом чата, SSE-потоком и анимацией набора текста.
 
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message");
 const messages = document.querySelector("#messages");
 const submitButton = form.querySelector("button[type='submit']");
 const newChatButton = document.querySelector("#new-chat");
+const reduceMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+).matches;
 
 const sessionId = getSessionId();
 
@@ -34,17 +37,22 @@ function getSessionId() {
     }
 }
 
-newChatButton.addEventListener("click", () => {
-    try {
-        localStorage.removeItem("chat_session_id");
-    } catch (error) {
-        console.warn("Не удалось очистить session_id", error);
-    }
-
-    window.location.reload();
-});
+function scrollMessages() {
+    messages.scrollTop = messages.scrollHeight;
+}
 
 function addMessage(content, role, isError = false) {
+    const group = document.createElement("div");
+    group.className = `message-group message-group--${role}`;
+
+    if (role === "assistant") {
+        const avatar = document.createElement("div");
+        avatar.className = "message-avatar";
+        avatar.setAttribute("aria-hidden", "true");
+        avatar.textContent = "AI";
+        group.append(avatar);
+    }
+
     const message = document.createElement("div");
     message.className = `message message--${role}`;
 
@@ -53,9 +61,86 @@ function addMessage(content, role, isError = false) {
     }
 
     message.textContent = content;
-    messages.append(message);
-    messages.scrollTop = messages.scrollHeight;
+    group.append(message);
+    messages.append(group);
+    scrollMessages();
     return message;
+}
+
+function addTypingMessage() {
+    const message = addMessage("", "assistant");
+    message.classList.add("message--typing");
+    message.append(document.createElement("span"));
+    return message;
+}
+
+function createTextAnimator(message) {
+    let queue = "";
+    let rendering = null;
+    let hasStarted = false;
+
+    function prepareForText() {
+        if (hasStarted) {
+            return;
+        }
+
+        hasStarted = true;
+        message.classList.remove("message--typing");
+        message.replaceChildren();
+    }
+
+    async function renderQueue() {
+        prepareForText();
+
+        while (queue.length > 0) {
+            const batchSize = queue.length > 480
+                ? 8
+                : queue.length > 180
+                    ? 4
+                    : 1;
+            const part = queue.slice(0, batchSize);
+            queue = queue.slice(batchSize);
+            message.textContent += part;
+            scrollMessages();
+
+            if (!reduceMotion) {
+                const endsSentence = /[.!?]\s?$/.test(part);
+                await new Promise((resolve) => {
+                    window.setTimeout(resolve, endsSentence ? 38 : 14);
+                });
+            }
+        }
+
+        rendering = null;
+    }
+
+    function push(text) {
+        queue += text;
+
+        if (reduceMotion) {
+            prepareForText();
+            message.textContent += queue;
+            queue = "";
+            scrollMessages();
+            return;
+        }
+
+        if (!rendering) {
+            rendering = renderQueue();
+        }
+    }
+
+    async function finish() {
+        if (rendering) {
+            await rendering;
+        }
+    }
+
+    return {
+        push,
+        finish,
+        hasText: () => hasStarted && Boolean(message.textContent),
+    };
 }
 
 function readSseEvent(block) {
@@ -80,10 +165,9 @@ function readSseEvent(block) {
     };
 }
 
-function handleSseEvent(event, assistantMessage) {
+function handleSseEvent(event, animator) {
     if (event.name === "token") {
-        assistantMessage.textContent += event.data.text;
-        messages.scrollTop = messages.scrollHeight;
+        animator.push(event.data.text);
         return;
     }
 
@@ -92,7 +176,7 @@ function handleSseEvent(event, assistantMessage) {
     }
 }
 
-async function streamResponse(response, assistantMessage) {
+async function streamResponse(response, animator) {
     if (!response.body) {
         throw new Error("Браузер не поддерживает потоковые ответы");
     }
@@ -115,7 +199,7 @@ async function streamResponse(response, assistantMessage) {
 
             const event = readSseEvent(block);
             if (event) {
-                handleSseEvent(event, assistantMessage);
+                handleSseEvent(event, animator);
             }
         }
 
@@ -127,10 +211,36 @@ async function streamResponse(response, assistantMessage) {
     if (buffer.trim()) {
         const event = readSseEvent(buffer);
         if (event) {
-            handleSseEvent(event, assistantMessage);
+            handleSseEvent(event, animator);
         }
     }
+
+    await animator.finish();
 }
+
+function resizeInput() {
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+}
+
+input.addEventListener("input", resizeInput);
+
+input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+    }
+});
+
+newChatButton.addEventListener("click", () => {
+    try {
+        localStorage.removeItem("chat_session_id");
+    } catch (error) {
+        console.warn("Не удалось очистить session_id", error);
+    }
+
+    window.location.reload();
+});
 
 form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -142,6 +252,7 @@ form.addEventListener("submit", async (event) => {
 
     addMessage(content, "user");
     input.value = "";
+    resizeInput();
     input.disabled = true;
     submitButton.disabled = true;
 
@@ -166,18 +277,21 @@ form.addEventListener("submit", async (event) => {
             );
         }
 
-        assistantMessage = addMessage("", "assistant");
-        await streamResponse(response, assistantMessage);
+        assistantMessage = addTypingMessage();
+        const animator = createTextAnimator(assistantMessage);
+        await streamResponse(response, animator);
 
-        if (!assistantMessage.textContent) {
-            assistantMessage.remove();
+        if (!animator.hasText()) {
+            assistantMessage.parentElement.remove();
             assistantMessage = null;
         }
     } catch (error) {
         console.error(error);
         const errorText = error.message || "Не удалось отправить сообщение.";
 
-        if (assistantMessage && !assistantMessage.textContent) {
+        if (assistantMessage) {
+            assistantMessage.classList.remove("message--typing");
+            assistantMessage.replaceChildren();
             assistantMessage.textContent = errorText;
             assistantMessage.classList.add("message--error");
         } else {

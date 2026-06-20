@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     chroma_path: Path = PROJECT_ROOT / "chroma_data"
     chroma_collection: str = "business_knowledge"
     rag_max_distance: float = 0.78
+    allowed_origins: str = (
+        "http://localhost:8000,http://127.0.0.1:8000"
+    )
 
     smtp_host: str = "localhost"
     smtp_port: int = 587
@@ -47,6 +50,14 @@ class Settings(BaseSettings):
         if value.is_absolute():
             return value
         return PROJECT_ROOT / value
+
+    @property
+    def allowed_origin_list(self) -> list[str]:
+        return [
+            origin.strip().rstrip("/")
+            for origin in self.allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 @lru_cache

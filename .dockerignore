@@ -1,1 +1,16 @@
+# Этот файл исключает локальные и временные данные из Docker-контекста.
 
+.env
+.git
+.idea
+.venv
+__pycache__
+*.py[cod]
+*.log
+.pytest_cache
+.mypy_cache
+chroma_data
+postgres_data
+tests
+tmp
+output

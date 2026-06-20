@@ -1,6 +1,38 @@
-# Этот файл запускает PostgreSQL для локальной разработки приложения.
+# Этот файл запускает FastAPI-приложение и PostgreSQL одной командой.
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-consultant-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/ai_consultant
+      KNOWLEDGE_DIR: /app/knowledge
+      CHROMA_PATH: /app/chroma_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/app/chroma_data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
   postgres:
     image: postgres:16-alpine
     container_name: ai-consultant-postgres
@@ -21,3 +53,4 @@ services:
 
 volumes:
   postgres_data:
+  chroma_data:

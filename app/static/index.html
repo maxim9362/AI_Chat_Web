@@ -1,19 +1,24 @@
-<!-- Этот файл содержит простую веб-страницу пользовательского чата. -->
+<!-- Этот файл содержит адаптивный интерфейс AI-консультанта компании. -->
 <!doctype html>
 <html lang="ru">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AI-консультант</title>
-    <link rel="stylesheet" href="/static/style.css?v=4">
+    <meta name="theme-color" content="#ffffff">
+    <title>Клима Сервис — AI-консультант</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
-    <main class="chat">
+    <main class="chat" aria-label="Чат с AI-консультантом">
         <header class="chat__header">
-            <div class="chat__status" aria-hidden="true"></div>
+            <div class="brand-mark" aria-hidden="true">КС</div>
             <div class="chat__heading">
-                <h1>AI-консультант</h1>
-                <p>Задайте вопрос о компании</p>
+                <h1>Клима Сервис</h1>
+                <p>
+                    <span class="status-dot" aria-hidden="true"></span>
+                    AI-консультант онлайн
+                </p>
             </div>
             <button
                 id="new-chat"
@@ -21,31 +26,44 @@
                 type="button"
                 title="Начать новый диалог"
             >
-                Новый диалог
+                <span aria-hidden="true">↻</span>
+                <span>Новый диалог</span>
             </button>
         </header>
 
         <section id="messages" class="chat__messages" aria-live="polite">
-            <div class="message message--assistant">
-                Здравствуйте! Чем я могу вам помочь?
+            <div class="message-group message-group--assistant">
+                <div class="message-avatar" aria-hidden="true">AI</div>
+                <div class="message message--assistant">Здравствуйте! Расскажите, что случилось с кондиционером, или задайте вопрос об услугах и стоимости.</div>
             </div>
         </section>
 
         <form id="chat-form" class="chat__form">
-            <label class="visually-hidden" for="message">Ваш вопрос</label>
-            <input
-                id="message"
-                name="message"
-                type="text"
-                placeholder="Напишите сообщение..."
-                maxlength="4000"
-                autocomplete="off"
-                required
-            >
-            <button type="submit">Отправить</button>
+            <div class="composer">
+                <label class="visually-hidden" for="message">
+                    Ваше сообщение
+                </label>
+                <textarea
+                    id="message"
+                    name="message"
+                    rows="1"
+                    placeholder="Напишите сообщение..."
+                    maxlength="4000"
+                    autocomplete="off"
+                    required
+                ></textarea>
+                <button
+                    class="composer__send"
+                    type="submit"
+                    aria-label="Отправить сообщение"
+                    title="Отправить"
+                >
+                    <span aria-hidden="true">↑</span>
+                </button>
+            </div>
         </form>
     </main>
 
-    <script src="/static/chat.js?v=5" defer></script>
+    <script src="/static/chat.js?v=6" defer></script>
 </body>
 </html>
