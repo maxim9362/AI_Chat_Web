@@ -9,6 +9,7 @@ from app.database.base import Base
 
 
 class Message(Base):
+    """Хранит одно сообщение пользователя или консультанта."""
     __tablename__ = "messages"
     __table_args__ = (
         Index("ix_messages_session_created", "session_id", "created_at"),

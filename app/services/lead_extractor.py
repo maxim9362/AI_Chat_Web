@@ -21,7 +21,7 @@ NAME_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"^\s*([А-ЯЁA-Z][а-яёa-z]{1,30})"
+        r"(?:^|[.!?]\s+)([А-ЯЁA-Z][а-яёa-z]{1,30})"
         r"(?=\s*[,;:]?\s*(?:\+972|00972|0)?[\s(.-]*(?:\d[\s()\-]*){8,10})",
         re.IGNORECASE,
     ),
@@ -74,6 +74,7 @@ SERVICE_KEYWORDS = {
     "ремонт кондиционера": (
         "ремонт",
         "почин",
+        "сломал",
         "не охлаждает",
         "не греет",
         "не включается",
@@ -89,6 +90,10 @@ SERVICE_KEYWORDS = {
     ),
     "чистка кондиционера": (
         "чистк",
+        "почист",
+        "очист",
+        "помыть",
+        "помыть кондиционер",
         "мойк",
         "плесень",
         "запах",
@@ -115,6 +120,24 @@ SERVICE_KEYWORDS = {
         "вопрос специалист",
     ),
 }
+PROBLEM_PATTERN = re.compile(
+    r"(?:не\s+охлаждает|не\s+греет|не\s+включается|не\s+работает|"
+    r"течет|течёт|капает|шумит|вибрирует|пахнет|запах|"
+    r"выбивает|ошибк\w*|обмерз\w*|лед|лёд|"
+    r"слаб\w*\s+(?:поток(?:\s+воздуха)?|дует)|плохо\s+дует)",
+    re.IGNORECASE,
+)
+CITY_ALIASES = {
+    "ашдод": "Ашдод",
+    "ашкелон": "Ашкелон",
+    "ган явне": "Ган-Явне",
+    "ган-явне": "Ган-Явне",
+    "явне": "Явне",
+    "кириат малахи": "Кирьят-Малахи",
+    "кириат-малахи": "Кирьят-Малахи",
+    "кирьят малахи": "Кирьят-Малахи",
+    "кирьят-малахи": "Кирьят-Малахи",
+}
 ISRAEL_TIMEZONE = ZoneInfo("Asia/Jerusalem")
 TIME_PART = r"(?:[01]?\d|2[0-3])(?:[:.-][0-5]\d)"
 HOUR_PART = r"(?:[01]?\d|2[0-3])"
@@ -123,6 +146,12 @@ INCOMPLETE_TIME_PATTERN = re.compile(
 )
 BARE_TIME_PATTERN = re.compile(
     rf"^\s*(?P<hour>[01]?\d|2[0-3])[:.-](?P<minute>[0-5]\d)\s*$"
+)
+DAY_WITH_TIME_PATTERN = re.compile(
+    rf"^\s*(?:(?P<day_before>сегодня|завтра)\s+(?:в\s+)?"
+    rf"(?P<time_after>{TIME_PART})|(?P<time_before>{TIME_PART})\s+"
+    rf"(?P<day_after>сегодня|завтра))\s*$",
+    re.IGNORECASE,
 )
 CONTACT_TIME_PATTERNS = (
     re.compile(
@@ -155,6 +184,7 @@ CONTACT_TIME_PATTERNS = (
 
 @dataclass(frozen=True, slots=True)
 class ExtractedLead:
+    """Содержит контактные данные, распознанные в сообщениях."""
     name: str | None
     phone: str | None
     email: str | None
@@ -163,6 +193,7 @@ class ExtractedLead:
 
 
 def extract_lead_data(messages: Iterable[str]) -> ExtractedLead:
+    """Собирает последние известные поля лида из сообщений."""
     texts = [message.strip() for message in messages if message.strip()]
     name: str | None = None
     phone: str | None = None
@@ -194,10 +225,12 @@ def extract_lead_data(messages: Iterable[str]) -> ExtractedLead:
 
 
 def extract_name(text: str) -> str | None:
+    """Извлекает явно указанное имя."""
     return _extract_name(text)
 
 
 def extract_phone(text: str) -> str | None:
+    """Находит и нормализует израильский мобильный номер."""
     for match in PHONE_CANDIDATE_PATTERN.finditer(text):
         normalized_phone = _normalize_phone(match.group(0))
         if normalized_phone is not None:
@@ -206,19 +239,49 @@ def extract_phone(text: str) -> str | None:
 
 
 def extract_email(text: str) -> str | None:
+    """Извлекает email-адрес из текста."""
     match = EMAIL_PATTERN.search(text)
     return match.group(0).lower() if match else None
 
 
 def extract_service(text: str) -> str | None:
+    """Определяет интересующую услугу по ключевым словам."""
     return _extract_service(text)
+
+
+def extract_problem(text: str) -> str | None:
+    """Возвращает текст при наличии симптома неисправности."""
+    match = PROBLEM_PATTERN.search(text)
+    return match.group(0).strip() if match else None
+
+
+def extract_city(text: str) -> str | None:
+    """Распознает город из зоны обслуживания."""
+    normalized_text = normalize_air_conditioner_text(text)
+    for alias, city in CITY_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", normalized_text):
+            return city
+    return None
 
 
 def extract_preferred_contact_time(
     text: str,
     moment: datetime | None = None,
 ) -> str | None:
+    """Извлекает удобный день или время обратной связи."""
     normalized_text = " ".join(text.strip().split())
+    day_with_time_match = DAY_WITH_TIME_PATTERN.fullmatch(normalized_text)
+    if day_with_time_match:
+        day = (
+            day_with_time_match.group("day_before")
+            or day_with_time_match.group("day_after")
+        ).casefold()
+        clock = (
+            day_with_time_match.group("time_after")
+            or day_with_time_match.group("time_before")
+        )
+        return f"{day} в {_normalize_clock(clock)}"
+
     bare_time_match = BARE_TIME_PATTERN.fullmatch(normalized_text)
     if bare_time_match:
         hour = int(bare_time_match.group("hour"))
@@ -239,10 +302,12 @@ def extract_preferred_contact_time(
 
 
 def is_incomplete_contact_time(text: str) -> bool:
+    """Проверяет неполную запись времени вроде 13:3."""
     return bool(INCOMPLETE_TIME_PATTERN.fullmatch(text))
 
 
 def _israel_datetime(moment: datetime | None) -> datetime:
+    """Возвращает момент в часовом поясе Израиля."""
     current = moment or datetime.now(ISRAEL_TIMEZONE)
     if current.tzinfo is None:
         return current.replace(tzinfo=ISRAEL_TIMEZONE)
@@ -250,6 +315,7 @@ def _israel_datetime(moment: datetime | None) -> datetime:
 
 
 def _normalize_time_separators(text: str) -> str:
+    """Приводит разделитель времени к двоеточию."""
     return re.sub(
         r"(?P<hour>\b(?:[01]?\d|2[0-3]))[.-](?P<minute>[0-5]\d\b)",
         r"\g<hour>:\g<minute>",
@@ -257,7 +323,14 @@ def _normalize_time_separators(text: str) -> str:
     )
 
 
+def _normalize_clock(value: str) -> str:
+    """Приводит отдельное время к формату ЧЧ:ММ."""
+    hour, minute = re.split(r"[:.-]", value)
+    return f"{int(hour):02d}:{int(minute):02d}"
+
+
 def _extract_name(text: str) -> str | None:
+    """Ищет имя в явной фразе или рядом с телефоном."""
     for pattern in NAME_PATTERNS:
         match = pattern.search(text)
         if match:
@@ -266,6 +339,7 @@ def _extract_name(text: str) -> str | None:
 
 
 def _extract_standalone_name(text: str) -> str | None:
+    """Проверяет, может ли одиночное слово быть именем."""
     normalized_text = text.strip()
     if not STANDALONE_NAME_PATTERN.fullmatch(normalized_text):
         return None
@@ -275,6 +349,7 @@ def _extract_standalone_name(text: str) -> str | None:
 
 
 def _normalize_phone(phone: str) -> str | None:
+    """Приводит номер к международному формату +972."""
     digits = re.sub(r"\D", "", phone)
     if digits.startswith("00972"):
         digits = digits[2:]
@@ -291,6 +366,7 @@ def _normalize_phone(phone: str) -> str | None:
 
 
 def _extract_service(text: str) -> str | None:
+    """Сопоставляет текст с каталогом услуг."""
     normalized_text = normalize_air_conditioner_text(text)
     for service, keywords in SERVICE_KEYWORDS.items():
         if any(keyword in normalized_text for keyword in keywords):
@@ -299,6 +375,7 @@ def _extract_service(text: str) -> str | None:
 
 
 def normalize_air_conditioner_text(text: str) -> str:
+    """Нормализует частые варианты слова кондиционер."""
     normalized_text = text.casefold().replace("ё", "е")
     conditioner_pattern = re.compile(
         r"\b(?:кондиционер\w*|кондеционер\w*|кондицеонер\w*|"

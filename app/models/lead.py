@@ -9,6 +9,7 @@ from app.database.base import Base
 
 
 class Lead(Base):
+    """Хранит оформленную заявку посетителя сайта."""
     __tablename__ = "leads"
     __table_args__ = (
         Index("uq_leads_session_id", "session_id", unique=True),

@@ -12,6 +12,7 @@ from app.services.email_service import EmailService, EmailServiceError  # noqa: 
 
 
 def main() -> None:
+    """Отправляет тестовое письмо с текущими SMTP-настройками."""
     try:
         EmailService().send_email(
             subject="Проверка email AI-консультанта",

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 class IngestResponse(BaseModel):
+    """Описывает результат переиндексации базы знаний."""
     status: str
     document_count: int
     chunk_count: int

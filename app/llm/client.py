@@ -15,12 +15,15 @@ class LLMResponseError(RuntimeError):
 
 
 class LLMClient:
+    """Инкапсулирует потоковые запросы к Gemini API."""
+
     def __init__(
         self,
         api_key: str,
         model: str,
         fallback_model: str = "",
     ) -> None:
+        """Проверяет настройки и сохраняет параметры Gemini."""
         normalized_api_key = api_key.strip()
         if not normalized_api_key:
             raise LLMConfigurationError(
@@ -42,6 +45,7 @@ class LLMClient:
         system_prompt: str,
         messages: Sequence[dict[str, str]],
     ) -> AsyncIterator[str]:
+        """Потоково генерирует ответ с резервной моделью при сбое."""
         contents = [
             types.Content(
                 role=self._to_gemini_role(message["role"]),
@@ -102,6 +106,7 @@ class LLMClient:
 
     @staticmethod
     def _to_gemini_role(role: str) -> str:
+        """Преобразует внутреннюю роль сообщения в формат Gemini."""
         if role == "assistant":
             return "model"
         if role == "user":

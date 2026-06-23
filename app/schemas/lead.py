@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class LeadResponse(BaseModel):
+    """Описывает данные заявки в ответе API."""
     id: int
     session_id: str
     name: str | None

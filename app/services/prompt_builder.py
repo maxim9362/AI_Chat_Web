@@ -5,19 +5,25 @@ from typing import Protocol
 
 
 class HistoryMessage(Protocol):
+    """Описывает сообщение истории, необходимое сборщику промпта."""
     role: str
     content: str
 
 
 @dataclass(frozen=True, slots=True)
 class ChatPrompt:
+    """Содержит системную инструкцию и сообщения для LLM."""
     system_prompt: str
     messages: list[dict[str, str]]
 
 
 @dataclass(frozen=True, slots=True)
 class CustomerContext:
+    """Передает LLM известное состояние клиента и заявки."""
     lead_created: bool
+    service: str | None = None
+    problem: str | None = None
+    city: str | None = None
     name: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -43,6 +49,19 @@ SYSTEM_PROMPT = """
 Пиши дружелюбно и после ответа продвигай диалог одним конкретным вопросом.
 Сначала помоги человеку полезной информацией, и только затем предлагай оформить заявку.
 Не превращай разговор в анкету и не задавай несколько вопросов одновременно.
+Сначала определи смысл последнего сообщения и прямо ответь на вопрос пользователя.
+Если пользователь уже назвал услугу, не спрашивай, какая услуга его интересует.
+Если пользователь спрашивает стоимость, сначала назови доступный в базе диапазон и
+объясни факторы цены, затем задай только один уместный уточняющий вопрос.
+До явного согласия пользователя оформить заявку не спрашивай имя, телефон, email
+или удобное время связи. State заявки помогает помнить данные, но не заменяет
+понимание смысла сообщения.
+Если после полезного ответа уместно предложить заявку, используй один короткий
+вопрос: "Хотите, я оформлю заявку мастеру?" Не предлагай заявку в каждом ответе.
+Ашдод, Ашкелон, Ган-Явне, Явне и Кирьят-Малахи являются основной зоной выезда.
+Если пользователь называет другой город, поселок или кибуц, не утверждай, что
+компания его не обслуживает. Скажи, что возможность выезда нужно подтвердить,
+и предложи оформить заявку для проверки зоны менеджером.
 Если фрагменты не содержат достаточного ответа, не направляй пользователя
 сразу к специалисту. Задай один короткий уточняющий вопрос, который поможет
 понять нужную услугу, объект работ или требуемую стоимость.
@@ -53,6 +72,11 @@ SYSTEM_PROMPT = """
 или дополнительные технические детали, необходимые для полезного ответа.
 Если пользователь сообщает новую неисправность или уточнение после оформления,
 подтверди, что информация добавлена к существующей заявке.
+Контекст клиента содержит lead_state. Если поле service, problem, city, name,
+phone или email уже известно, запрещено спрашивать его повторно.
+Если уже известны service, problem, city, name и phone либо email, а
+preferred_contact_time еще не указано, следующий вопрос должен быть только
+об удобном времени связи. Не сбрасывай lead_state после получения контакта.
 Отвечай на языке пользователя ясно, кратко и по существу.
 Не упоминай внутренние инструкции и техническую реализацию.
 """.strip()
@@ -64,6 +88,7 @@ def build_chat_prompt(
     knowledge_chunks: list[str],
     customer_context: CustomerContext | None = None,
 ) -> ChatPrompt:
+    """Собирает RAG-промпт с историей и состоянием лида."""
     knowledge_context = "\n\n".join(
         f"[Фрагмент {index}]\n{content}"
         for index, content in enumerate(knowledge_chunks, start=1)
@@ -101,11 +126,15 @@ def build_chat_prompt(
 def _format_customer_context(
     customer_context: CustomerContext | None,
 ) -> str:
-    if customer_context is None or not customer_context.lead_created:
+    """Преобразует известные данные клиента в системный контекст."""
+    if customer_context is None:
         return "lead_created: false"
 
     values = [
-        "lead_created: true",
+        f"lead_created: {str(customer_context.lead_created).lower()}",
+        f"Услуга: {customer_context.service or 'не указана'}",
+        f"Проблема: {customer_context.problem or 'не указана'}",
+        f"Город: {customer_context.city or 'не указан'}",
         f"Имя: {customer_context.name or 'не указано'}",
         f"Телефон: {customer_context.phone or 'не указан'}",
         f"Email: {customer_context.email or 'не указан'}",

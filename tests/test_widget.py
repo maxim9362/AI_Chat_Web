@@ -13,11 +13,15 @@ WIDGET_FILE = PROJECT_ROOT / "app" / "widget" / "chat-widget.js"
 
 
 class WidgetTests(unittest.TestCase):
+    """Проверяет выдачу виджета и CORS-поведение."""
+
     @classmethod
     def setUpClass(cls) -> None:
+        """Создает тестовый HTTP-клиент FastAPI."""
         cls.client = TestClient(app)
 
     def test_widget_endpoint_returns_javascript(self) -> None:
+        """Проверяет MIME-тип и содержимое скрипта."""
         response = self.client.get("/widget/chat-widget.js")
 
         self.assertEqual(response.status_code, 200)
@@ -32,6 +36,7 @@ class WidgetTests(unittest.TestCase):
         )
 
     def test_cors_allows_configured_local_origin(self) -> None:
+        """Проверяет разрешение настроенного источника."""
         response = self.client.options(
             "/api/chat",
             headers={
@@ -48,6 +53,7 @@ class WidgetTests(unittest.TestCase):
         )
 
     def test_cors_does_not_allow_unknown_origin(self) -> None:
+        """Проверяет блокировку неизвестного источника."""
         response = self.client.options(
             "/api/chat",
             headers={
@@ -62,6 +68,7 @@ class WidgetTests(unittest.TestCase):
         )
 
     def test_widget_has_no_external_frontend_dependencies(self) -> None:
+        """Проверяет автономность JavaScript-виджета."""
         source = WIDGET_FILE.read_text(encoding="utf-8")
 
         self.assertIn("(function", source)

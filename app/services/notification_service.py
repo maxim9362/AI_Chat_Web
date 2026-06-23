@@ -13,6 +13,7 @@ def notify_new_lead(
     lead: Lead,
     email_service: EmailService | None = None,
 ) -> bool:
+    """Отправляет владельцу email и не прерывает создание лида при ошибке."""
     service = email_service or EmailService()
     try:
         service.send_email(
@@ -32,6 +33,7 @@ def notify_new_lead(
 
 
 def format_lead_email(lead: Lead) -> str:
+    """Формирует читаемый текст email с данными новой заявки."""
     contact = lead.phone or lead.email or "не указан"
     return "\n".join(
         (
@@ -46,4 +48,3 @@ def format_lead_email(lead: Lead) -> str:
             f"Статус: {lead.status}",
         )
     )
-

@@ -9,6 +9,7 @@ from app.database.base import Base
 
 
 class Session(Base):
+    """Представляет отдельный диалог, определяемый session_id."""
     __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True)

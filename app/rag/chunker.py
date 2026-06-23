@@ -7,6 +7,7 @@ import re
 
 @dataclass(frozen=True, slots=True)
 class TextChunk:
+    """Представляет текстовый фрагмент для последующей индексации."""
     content: str
     char_count: int
     chunk_index: int
@@ -18,6 +19,7 @@ def chunk_markdown(
     max_chars: int = 1800,
     overlap_chars: int = 250,
 ) -> list[TextChunk]:
+    """Разбивает Markdown по абзацам на перекрывающиеся фрагменты."""
     if min_chars < 1 or max_chars < min_chars:
         raise ValueError("Некорректные границы размера чанка.")
     if not 200 <= overlap_chars <= 300:
@@ -113,6 +115,7 @@ def chunk_markdown(
 
 
 def _paragraph_end_positions(text: str) -> list[int]:
+    """Находит позиции окончаний абзацев в исходном тексте."""
     boundaries = [
         match.start()
         for match in re.finditer(r"\n\n", text)
@@ -127,6 +130,7 @@ def _nearest_boundary(
     maximum: int,
     target: int,
 ) -> int:
+    """Выбирает ближайшую подходящую границу абзаца."""
     candidates = [
         boundary
         for boundary in boundaries
@@ -139,6 +143,7 @@ def _nearest_boundary(
 
 
 def _word_boundary_after(text: str, position: int) -> int:
+    """Сдвигает позицию к следующей безопасной границе слова."""
     next_space = text.find(" ", position)
     next_paragraph = text.find("\n\n", position)
     candidates = [

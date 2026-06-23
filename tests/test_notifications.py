@@ -22,6 +22,7 @@ from app.services.notification_service import (
 
 
 def make_email_settings(**overrides: object) -> SimpleNamespace:
+    """Создает SMTP-настройки для тестов."""
     values = {
         "smtp_host": "smtp.example.com",
         "smtp_port": 587,
@@ -36,6 +37,7 @@ def make_email_settings(**overrides: object) -> SimpleNamespace:
 
 
 def make_lead() -> Lead:
+    """Создает модель лида для проверки уведомлений."""
     return Lead(
         id=12,
         session_id="notification-test",
@@ -52,11 +54,14 @@ def make_lead() -> Lead:
 
 
 class EmailServiceTests(unittest.TestCase):
+    """Проверяет валидацию и отправку SMTP-писем."""
+
     @patch("app.services.email_service.smtplib.SMTP")
     def test_email_service_sends_message_through_smtp(
         self,
         smtp_class: MagicMock,
     ) -> None:
+        """Проверяет успешную отправку письма через SMTP."""
         smtp = smtp_class.return_value.__enter__.return_value
         service = EmailService(make_email_settings())
 
@@ -72,6 +77,7 @@ class EmailServiceTests(unittest.TestCase):
         smtp.send_message.assert_called_once()
 
     def test_missing_smtp_settings_raise_clear_error(self) -> None:
+        """Проверяет ошибку при пустых SMTP-настройках."""
         service = EmailService(
             make_email_settings(
                 smtp_host="",
@@ -87,6 +93,7 @@ class EmailServiceTests(unittest.TestCase):
             service.send_email("Новая заявка", "Текст заявки")
 
     def test_invalid_smtp_port_raises_clear_error(self) -> None:
+        """Проверяет отклонение недопустимого SMTP-порта."""
         service = EmailService(make_email_settings(smtp_port=70000))
 
         with self.assertRaisesRegex(
@@ -97,7 +104,10 @@ class EmailServiceTests(unittest.TestCase):
 
 
 class NotificationTests(unittest.TestCase):
+    """Проверяет формат и правила уведомлений о лидах."""
+
     def test_notification_error_is_logged_without_crashing(self) -> None:
+        """Проверяет, что SMTP-ошибка не ломает создание заявки."""
         service = MagicMock(spec=EmailService)
         service.send_email.side_effect = EmailConfigurationError(
             "Не заполнены SMTP-настройки: EMAIL_TO"
@@ -114,6 +124,7 @@ class NotificationTests(unittest.TestCase):
         self.assertIn("EMAIL_TO", captured.output[0])
 
     def test_email_contains_contact_time_and_request_details(self) -> None:
+        """Проверяет важные поля в тексте письма."""
         content = format_lead_email(make_lead())
 
         self.assertIn("Имя: Максим", content)
@@ -122,6 +133,7 @@ class NotificationTests(unittest.TestCase):
         self.assertIn("Проблема: течет вода", content)
 
     def test_lead_service_notifies_only_after_new_lead_creation(self) -> None:
+        """Проверяет единственное уведомление при создании лида."""
         engine = create_engine("sqlite+pysqlite:///:memory:")
         Base.metadata.create_all(engine)
         db = Session(engine)

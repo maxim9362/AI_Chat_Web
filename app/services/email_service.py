@@ -8,6 +8,7 @@ from app.config import settings
 
 
 class EmailSettings(Protocol):
+    """Описывает SMTP-настройки, необходимые почтовому сервису."""
     smtp_host: str
     smtp_port: int
     smtp_user: str
@@ -30,10 +31,14 @@ class EmailDeliveryError(EmailServiceError):
 
 
 class EmailService:
+    """Отправляет текстовые письма через настроенный SMTP-сервер."""
+
     def __init__(self, email_settings: EmailSettings = settings) -> None:
+        """Сохраняет SMTP-настройки сервиса."""
         self.settings = email_settings
 
     def send_email(self, subject: str, body: str) -> None:
+        """Проверяет настройки и отправляет одно email-сообщение."""
         self._validate_settings()
         message = EmailMessage()
         message["Subject"] = subject
@@ -65,6 +70,7 @@ class EmailService:
             ) from exc
 
     def _validate_settings(self) -> None:
+        """Выбрасывает понятную ошибку при неполной SMTP-конфигурации."""
         missing = [
             name
             for name, value in (

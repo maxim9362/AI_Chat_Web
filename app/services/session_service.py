@@ -11,6 +11,7 @@ def get_or_create_session(
     db: DatabaseSession,
     session_id: str,
 ) -> Session:
+    """Находит или безопасно создает сессию при конкурентных запросах."""
     normalized_session_id = session_id.strip()
     if not normalized_session_id:
         raise ValueError("session_id не может быть пустым")

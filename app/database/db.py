@@ -31,6 +31,7 @@ SessionLocal = sessionmaker(
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Открывает SQLAlchemy-сессию на время одного запроса."""
     db = SessionLocal()
     try:
         yield db

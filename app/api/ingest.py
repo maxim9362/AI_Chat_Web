@@ -13,6 +13,7 @@ router = APIRouter(tags=["knowledge"])
 
 @router.post("/ingest", response_model=IngestResponse)
 def ingest() -> IngestResponse:
+    """Переиндексирует Markdown-базу знаний в ChromaDB."""
     try:
         result = ingest_knowledge(
             knowledge_dir=settings.knowledge_dir,

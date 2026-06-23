@@ -16,12 +16,15 @@ class KnowledgeIndexError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class RetrievedChunk:
+    """Описывает найденный фрагмент базы знаний и его источник."""
     content: str
     source: str
     distance: float
 
 
 class KnowledgeRetriever:
+    """Выполняет семантический поиск по коллекции ChromaDB."""
+
     def __init__(
         self,
         chroma_path: Path,
@@ -29,6 +32,7 @@ class KnowledgeRetriever:
         embedding_client: EmbeddingClient,
         max_distance: float,
     ) -> None:
+        """Открывает существующую коллекцию и сохраняет параметры поиска."""
         self._embedding_client = embedding_client
         self._max_distance = max_distance
         client = chromadb.PersistentClient(path=str(chroma_path))
@@ -46,6 +50,7 @@ class KnowledgeRetriever:
         query: str,
         limit: int = 5,
     ) -> list[RetrievedChunk]:
+        """Возвращает от трех до пяти релевантных фрагментов."""
         if not 3 <= limit <= 5:
             raise ValueError("Количество фрагментов должно быть от 3 до 5.")
 

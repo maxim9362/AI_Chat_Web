@@ -13,6 +13,7 @@ router = APIRouter(tags=["leads"])
 
 @router.get("/leads", response_model=list[LeadResponse])
 def get_leads(db: Session = Depends(get_db)) -> list[LeadResponse]:
+    """Возвращает сохраненные заявки в порядке от новых к старым."""
     return [
         LeadResponse.model_validate(lead)
         for lead in list_leads(db)

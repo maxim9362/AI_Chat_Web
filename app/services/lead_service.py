@@ -1,6 +1,5 @@
 # Этот файл проверяет данные лида и создает одну заявку на пользовательскую сессию.
 
-from collections.abc import Iterable
 import re
 
 from sqlalchemy.orm import Session
@@ -8,12 +7,11 @@ from sqlalchemy.orm import Session
 from app.models.lead import Lead
 from app.repositories.lead_repository import (
     append_lead_message,
-    create_lead,
+    create_lead_with_status,
     get_lead_by_session_id,
     update_lead,
 )
 from app.services.lead_extractor import (
-    extract_lead_data,
     extract_preferred_contact_time,
     extract_service,
     normalize_air_conditioner_text,
@@ -44,42 +42,6 @@ ADDITION_INTENT_PATTERN = re.compile(
 )
 
 
-def create_lead_if_ready(
-    db: Session,
-    session_id: str,
-    user_messages: Iterable[str],
-    details: str | None = None,
-) -> Lead | None:
-    existing_lead = get_lead_by_session_id(db, session_id)
-    if existing_lead is not None:
-        return existing_lead
-
-    extracted = extract_lead_data(user_messages)
-    has_contact = bool(extracted.phone or extracted.email)
-    if (
-        not extracted.name
-        or not has_contact
-        or not extracted.preferred_contact_time
-    ):
-        return None
-
-    lead = create_lead(
-        db=db,
-        session_id=session_id,
-        name=extracted.name,
-        phone=extracted.phone,
-        email=extracted.email,
-        message=(
-            details
-            or extracted.service
-            or "Контактные данные получены, детали заявки уточняются."
-        ),
-        preferred_contact_time=extracted.preferred_contact_time,
-    )
-    notify_new_lead(lead)
-    return lead
-
-
 def create_or_update_lead(
     db: Session,
     session_id: str,
@@ -89,6 +51,7 @@ def create_or_update_lead(
     details: str | None,
     preferred_contact_time: str | None,
 ) -> Lead:
+    """Создает новый лид или обновляет существующий по session_id."""
     existing_lead = get_lead_by_session_id(db, session_id)
     if existing_lead is not None:
         return update_lead(
@@ -101,7 +64,7 @@ def create_or_update_lead(
             preferred_contact_time=preferred_contact_time,
         )
 
-    lead = create_lead(
+    creation = create_lead_with_status(
         db=db,
         session_id=session_id,
         name=name,
@@ -110,8 +73,9 @@ def create_or_update_lead(
         message=details,
         preferred_contact_time=preferred_contact_time,
     )
-    notify_new_lead(lead)
-    return lead
+    if creation.created:
+        notify_new_lead(creation.lead)
+    return creation.lead
 
 
 def add_details_to_existing_lead(
@@ -119,6 +83,7 @@ def add_details_to_existing_lead(
     lead: Lead,
     user_message: str,
 ) -> str | None:
+    """Обновляет время или добавляет новые детали к готовой заявке."""
     preferred_time = extract_preferred_contact_time(user_message)
     if preferred_time and preferred_time != lead.preferred_contact_time:
         lead = update_lead(
@@ -156,6 +121,7 @@ def add_details_to_existing_lead(
 
 
 def format_lead_confirmation(lead: Lead) -> str:
+    """Формирует итоговое подтверждение с данными заявки."""
     contact = lead.phone or lead.email or "не указан"
     detail_lines = [
         part.strip()

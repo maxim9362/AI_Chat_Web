@@ -12,6 +12,7 @@ router = APIRouter(prefix="/widget", tags=["widget"])
 
 @router.get("/chat-widget.js", include_in_schema=False)
 def chat_widget() -> FileResponse:
+    """Отдает JavaScript-файл встраиваемого чат-виджета."""
     return FileResponse(
         WIDGET_DIR / "chat-widget.js",
         media_type="application/javascript",

@@ -8,4 +8,5 @@ from app.services.notification_service import (
 
 
 def send_lead_notification(lead: Lead) -> bool:
+    """Сохраняет совместимый интерфейс отправки уведомления о лиде."""
     return notify_new_lead(lead)

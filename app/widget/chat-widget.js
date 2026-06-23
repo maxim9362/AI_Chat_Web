@@ -716,6 +716,16 @@
 
         launcherButton.addEventListener("click", openWidget);
         closeButton.addEventListener("click", closeWidget);
+        window.addEventListener("uaisc:open", (openEvent) => {
+            openWidget();
+
+            const suggestedMessage = openEvent.detail?.message?.trim();
+            if (suggestedMessage) {
+                messageInput.value = suggestedMessage;
+                resizeInput();
+                messageInput.focus();
+            }
+        });
         messageInput.addEventListener("input", resizeInput);
         messageInput.addEventListener("keydown", (keyboardEvent) => {
             if (keyboardEvent.key === "Enter" && !keyboardEvent.shiftKey) {

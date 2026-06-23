@@ -13,6 +13,7 @@ WORKING_HOURS_TEXT = (
 
 
 def is_company_open(moment: datetime | None = None) -> bool:
+    """Проверяет, работает ли компания в указанный момент."""
     current = moment or datetime.now(ISRAEL_TIMEZONE)
     if current.tzinfo is None:
         current = current.replace(tzinfo=ISRAEL_TIMEZONE)
@@ -43,6 +44,7 @@ def preferred_time_is_outside_hours(
     preferred_time: str | None,
     moment: datetime | None = None,
 ) -> bool:
+    """Определяет, выходит ли пожелание за рабочие часы."""
     if not preferred_time:
         return False
 
@@ -77,6 +79,7 @@ def working_hours_notice(
     preferred_time: str | None,
     moment: datetime | None = None,
 ) -> str:
+    """Возвращает предупреждение для нерабочего времени."""
     if preferred_time_is_outside_hours(preferred_time, moment):
         return (
             "В это время компания обычно не работает, но мы передадим ваше "
@@ -93,6 +96,7 @@ def working_hours_notice(
 
 
 def _israel_datetime(moment: datetime | None) -> datetime:
+    """Переводит момент в часовой пояс Израиля."""
     current = moment or datetime.now(ISRAEL_TIMEZONE)
     if current.tzinfo is None:
         return current.replace(tzinfo=ISRAEL_TIMEZONE)
@@ -100,6 +104,7 @@ def _israel_datetime(moment: datetime | None) -> datetime:
 
 
 def _target_weekday(normalized_time: str, current_weekday: int) -> int | None:
+    """Определяет день недели из пожелания клиента."""
     if "сегодня" in normalized_time:
         return current_weekday
     if "завтра" in normalized_time:

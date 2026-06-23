@@ -17,6 +17,7 @@ from app.rag.ingestion import KnowledgeIngestionError, ingest_knowledge  # noqa:
 
 
 def main() -> None:
+    """Запускает полную индексацию локальной базы знаний."""
     embedding_client = EmbeddingClient(
         model_name=settings.embedding_model_name,
     )

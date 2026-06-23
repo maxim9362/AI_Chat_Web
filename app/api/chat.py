@@ -4,13 +4,13 @@ import json
 import logging
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database.db import get_db
+from app.database.db import SessionLocal
 from app.llm.client import (
     LLMClient,
     LLMConfigurationError,
@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 @router.post("/chat")
 async def chat(
     payload: ChatRequest,
-    db: Session = Depends(get_db),
 ) -> StreamingResponse:
+    """Принимает сообщение пользователя и возвращает поток SSE."""
     try:
         llm_client = LLMClient(
             api_key=settings.gemini_api_key,
@@ -40,6 +40,7 @@ async def chat(
     except LLMConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    db = SessionLocal()
     try:
         answer_stream = stream_chat_answer(
             db=db,
@@ -49,6 +50,7 @@ async def chat(
         )
     except SQLAlchemyError as exc:
         db.rollback()
+        db.close()
         logger.exception("Не удалось подключиться к базе данных")
         raise HTTPException(
             status_code=503,
@@ -57,10 +59,11 @@ async def chat(
             ),
         ) from exc
     except (EmbeddingError, KnowledgeIndexError) as exc:
+        db.close()
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return StreamingResponse(
-        _as_sse(answer_stream),
+        _as_sse(answer_stream, db),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -69,7 +72,11 @@ async def chat(
     )
 
 
-async def _as_sse(answer_stream: AsyncIterator[str]) -> AsyncIterator[str]:
+async def _as_sse(
+    answer_stream: AsyncIterator[str],
+    db: Session,
+) -> AsyncIterator[str]:
+    """Преобразует фрагменты ответа сервиса в события SSE."""
     try:
         async for chunk in answer_stream:
             yield _sse_event("token", {"text": chunk})
@@ -83,8 +90,11 @@ async def _as_sse(answer_stream: AsyncIterator[str]) -> AsyncIterator[str]:
             "error",
             {"message": "Не удалось получить ответ AI. Попробуйте еще раз."},
         )
+    finally:
+        db.close()
 
 
 def _sse_event(event: str, data: dict[str, str]) -> str:
+    """Формирует одно корректно сериализованное событие SSE."""
     serialized_data = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {serialized_data}\n\n"

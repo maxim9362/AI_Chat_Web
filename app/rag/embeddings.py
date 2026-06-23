@@ -23,7 +23,10 @@ class EmbeddingModelError(EmbeddingError):
 
 
 class EmbeddingClient:
+    """Создает локальные векторные представления текста."""
+
     def __init__(self, model_name: str) -> None:
+        """Загружает указанную sentence-transformers модель."""
         normalized_model_name = model_name.strip()
         if not normalized_model_name:
             raise EmbeddingConfigurationError(
@@ -43,6 +46,7 @@ class EmbeddingClient:
         texts: Sequence[str],
         batch_size: int = 100,
     ) -> list[list[float]]:
+        """Кодирует набор непустых текстов в нормализованные векторы."""
         if batch_size < 1:
             raise ValueError("Размер пакета embeddings должен быть положительным.")
 
@@ -63,9 +67,11 @@ class EmbeddingClient:
         return vectors.tolist()
 
     def embed_query(self, query: str) -> list[float]:
+        """Создает вектор для одного поискового запроса."""
         return self.embed_texts([query], batch_size=1)[0]
 
 
 @lru_cache(maxsize=4)
 def _load_model(model_name: str) -> SentenceTransformer:
+    """Кэширует тяжелую embedding-модель внутри worker-процесса."""
     return SentenceTransformer(model_name)

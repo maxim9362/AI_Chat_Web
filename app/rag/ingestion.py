@@ -16,6 +16,7 @@ class KnowledgeIngestionError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class IngestionResult:
+    """Содержит статистику выполненной индексации."""
     document_count: int
     chunk_count: int
 
@@ -26,6 +27,7 @@ def ingest_knowledge(
     collection_name: str,
     embedding_client: EmbeddingClient,
 ) -> IngestionResult:
+    """Читает Markdown-файлы и полностью пересобирает коллекцию ChromaDB."""
     markdown_files = sorted(knowledge_dir.rglob("*.md"))
     if not markdown_files:
         raise KnowledgeIngestionError(
